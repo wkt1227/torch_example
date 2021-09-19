@@ -58,12 +58,12 @@ def train(train_loader, model, device, optimizer, epoch, criterion):
 
     for idx, (inputs, targets) in enumerate(train_loader):
         inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
+        optimizer.zero_grad()  # 勾配の初期化
         outputs = model(inputs)
-        outputs = outputs.reshape(-1)
+        outputs = outputs.reshape(-1)  # outputsとtargetsのshapeを統一する
         loss = criterion(outputs.float(), targets.float())
-        loss.backward()
-        optimizer.step()
+        loss.backward()  # 誤差を伝播、勾配を計算
+        optimizer.step()  # 重みの更新
         if idx % 5 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, idx * len(inputs), len(train_loader.dataset), 
@@ -72,11 +72,11 @@ def train(train_loader, model, device, optimizer, epoch, criterion):
 def test(test_loader, model, device):
     model.eval()  # 評価モードに切り替える
     test_loss = 0
-    with torch.no_grad():
+    with torch.no_grad():  # 計算グラフを構築しない（メモリ節約）
         for inputs, targets in test_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
-            outputs = outputs.reshape(-1)
+            outputs = outputs.reshape(-1)  # outputsとtargetsのshapeを統一する
             criterion = nn.MSELoss(reduction='sum')
             test_loss += criterion(outputs.float(), targets.float()).item()
         
