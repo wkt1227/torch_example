@@ -17,10 +17,14 @@ def main():
     batch_size = 128
     lr = 0.0005
     momentum = 0.9
-    num_epochs = 10
+    num_epochs = 3
+
+    inputs_path = './data/X5000.npy'
+    targets_path = './data/y5000.npy'
+    best_model_path = './models/best_model.pth'
 
     # データセット [train:val:test] = [64:16:20]
-    dataset = Datasets('./X5000.npy', './y5000.npy')
+    dataset = Datasets(inputs_path, targets_path)
     n_samples = len(dataset)
     index_list = list(range(n_samples))
     random.shuffle(index_list)
@@ -47,16 +51,43 @@ def main():
     # 損失関数
     criterion = nn.MSELoss()
 
+    # 学習履歴
+    history = {
+        'loss': [],
+        'val_loss': []
+    }
+
+    min_val_loss = {
+        'value': float('inf'),
+        'epoch': 0
+    }
+
     # 学習
     for epoch in range(num_epochs):
-        train(train_loader, model, device, optimizer, epoch, criterion)
-        test(test_loader, model, device)
+        loss = train(train_loader, model, device, optimizer, criterion)
+        val_loss = test(val_loader, model, device, criterion)
+        history['loss'].append(loss)
+        history['val_loss'].append(val_loss)
+
+        if min_val_loss['value'] > val_loss:
+            min_val_loss['value'] = val_loss
+            min_val_loss['epoch'] = epoch 
+            torch.save(model.state_dict(), best_model_path)
+
+        print(f'Epoch [{epoch+1}/{num_epochs}] - loss: {loss:.4f} - val_loss: {val_loss:.4f}')
+
+    # 最小val_loss
+    print(f'Min val_loss: {min_val_loss["value"]:.4f} - epoch: {min_val_loss["epoch"]+1}')
+
+    # テスト
+    test_loss = test(test_loader, model, device, criterion)
+    print(f'Test - loss: {test_loss:.4f}')
 
 
-def train(train_loader, model, device, optimizer, epoch, criterion):
+def train(train_loader, model, device, optimizer, criterion):
     model.train()  # 学習モードに切り替える
 
-    for idx, (inputs, targets) in enumerate(train_loader):
+    for inputs, targets in train_loader:
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()  # 勾配の初期化
         outputs = model(inputs)
@@ -64,12 +95,11 @@ def train(train_loader, model, device, optimizer, epoch, criterion):
         loss = criterion(outputs.float(), targets.float())
         loss.backward()  # 誤差を伝播、勾配を計算
         optimizer.step()  # 重みの更新
-        if idx % 5 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
-                epoch, idx * len(inputs), len(train_loader.dataset), 
-                100. * idx / len(train_loader), loss.item()))
+        
+    return loss
 
-def test(test_loader, model, device):
+
+def test(test_loader, model, device, criterion):
     model.eval()  # 評価モードに切り替える
     test_loss = 0
     with torch.no_grad():  # 計算グラフを構築しない（メモリ節約）
@@ -77,12 +107,11 @@ def test(test_loader, model, device):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
             outputs = outputs.reshape(-1)  # outputsとtargetsのshapeを統一する
-            criterion = nn.MSELoss(reduction='sum')
             test_loss += criterion(outputs.float(), targets.float()).item()
         
-    test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}'.format(test_loss))
-
+    test_loss /= len(test_loader)
+    
+    return test_loss
 
 if __name__ == '__main__':
     main()
